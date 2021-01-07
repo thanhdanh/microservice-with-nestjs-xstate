@@ -1,0 +1,21 @@
+version: "3"
+services:
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: danhvt
+      POSTGRES_PASSWORD: randompassword
+      POSTGRES_DB: mydb
+    ports: 
+      - '15432:5432'
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+  orders_app:
+    build: ./backend/orders-app
+    restart: always
+    ports: 
+      - '3001:3000'
+    links:
+      - 'postgres'
+
