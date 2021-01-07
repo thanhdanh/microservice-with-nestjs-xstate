@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/services/prisma.service';
 import { Order, Prisma } from '@prisma/client';
+import { ICredential } from 'src/auth/constants';
 
 @Injectable()
 export class OrderService {
@@ -12,13 +13,13 @@ export class OrderService {
    * Create new order
    * @param data {Object}
    */
-  async createNewOrder(data: Prisma.OrderCreateInput): Promise<Order> {
+  async createNewOrder(data: Prisma.OrderCreateInput, user: ICredential): Promise<Order> {
     return this.prisma.order.create({
       data: {
         ...data,
         user: {
           connect: {
-            id: userId,
+            id: user.userId
           }
         }
       },

@@ -1,13 +1,20 @@
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { AppModule } from './app.module';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+const logger = new Logger('Main');
 
-  app.setGlobalPrefix('api');
-  app.enableCors();
-  
-  await app.listen(3000);
+async function bootstrap() {
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+    transport: Transport.REDIS,
+    options: {
+      url: 'redis://redis',
+      port: 3000,
+    },
+  });
+
+  await app.listenAsync().then(() => { logger.log('Order app microservice is listening...') });
 }
 
 bootstrap();
