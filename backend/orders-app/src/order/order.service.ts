@@ -26,4 +26,11 @@ export class OrderService {
     });
   }
 
+  async getAllOrders(user: ICredential) {
+    return this.prisma.order.findMany({
+      where: {
+        userId: user.userId 
+      }
+    })
+  }
 }

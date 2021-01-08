@@ -12,6 +12,7 @@ export class UserService {
 
 
     async getUserByName(name: string): Promise<User | undefined> {
+        
         return await this.prisma.user.findUnique({
             where: {
                 name

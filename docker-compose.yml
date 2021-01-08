@@ -14,14 +14,25 @@ services:
   redis:
     image: 'redis'
     restart: always
+    volumes:
+      - ./redis:/data
     ports: 
       - '16379:6379'
   orders_app:
-    build: ./backend/orders-app
+    # build: ./backend/orders-app
+    image: "node:15"
     restart: always
+    working_dir: /home/node/app
+    volumes:
+      - ./backend/orders-app:/home/node/app
+    environment: 
+      - NPM_CONFIG_LOGLEVEL=info
     ports: 
       - '3001:3000'
+    depends_on:
+      - redis
+      - postgres
     links:
       - 'postgres'
-      - 'redis'
+    command: 'npm run start:dev'
 
