@@ -1,20 +1,34 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException, NotImplementedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, NotImplementedException } from '@nestjs/common';
 import { PrismaService } from 'src/services/prisma.service';
 import { Order, OrderStatus, Prisma } from '@prisma/client';
 import { ICredential } from 'src/auth/constants';
+import { Client, ClientProxy, Transport } from '@nestjs/microservices';
+import { DELIVERY_TIME, InternalEvents, MessagesTransport, REQUEST_TIMEOUT, TransactionStatus } from '../constants';
+import { timeout } from 'rxjs/operators';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { TransactionDetailDto } from './dto/tx-detail.dto';
 
 @Injectable()
 export class OrderService {
   private readonly logger = new Logger('OrderService');
   
-  constructor(private prisma: PrismaService) {}
+  @Client({
+    transport: Transport.REDIS,
+    options: { url: process.env.REDIS_URL }
+  })
+  client: ClientProxy;
+
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2
+  ) {}
   
   /**
    * Create new order
    * @param data {Object}
    */
   async createNewOrder(data: Prisma.OrderCreateInput, user: ICredential): Promise<Order> {
-    return this.prisma.order.create({
+    const newOrder = await this.prisma.order.create({
       data: {
         ...data,
         user: {
@@ -24,12 +38,19 @@ export class OrderService {
         }
       },
     });
+
+    this.eventEmitter.emit(InternalEvents.ORDER_CREATED, newOrder.id);
+
+    return newOrder;
   }
 
   async getAllOrders(user: ICredential) {
     return this.prisma.order.findMany({
       where: {
         userId: user.userId 
+      },
+      orderBy: {
+        createdAt: 'desc',
       }
     })
   }
@@ -53,7 +74,7 @@ export class OrderService {
 
   async cancelOrder(orderId: number, user: ICredential): Promise<Order>  {
     const order = await this.findById(orderId, user);
-    if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Confirmed) {
+    if (order.status === OrderStatus.Canceled || order.status === OrderStatus.Confirmed) {
       throw new NotImplementedException('Not allow cancel with current status')
     }
 
@@ -62,7 +83,7 @@ export class OrderService {
         id: orderId
       },
       data: {
-        status: OrderStatus.Cancelled
+        status: OrderStatus.Canceled
       }
     })
 
@@ -80,15 +101,72 @@ export class OrderService {
       throw new NotImplementedException('Not allow deliver with current status') 
     }
 
-    const newOrder = await this.prisma.order.update({
+    setTimeout(async () => {
+      await this.prisma.order.update({
+        where: {
+          id: orderId
+        },
+        data: {
+          status: OrderStatus.Delivered
+        }
+      })
+    }, DELIVERY_TIME)
+  }
+
+  async triggerNewPaymentProcess(orderId: number) {
+    const order = await this.prisma.order.findUnique({
       where: {
-        id: orderId
-      },
-      data: {
-        status: OrderStatus.Delivered
+        id: orderId,
+      }
+    });
+
+    if (!order || order.status !== OrderStatus.Created) {
+      throw new BadRequestException('Invalid order');
+    }
+
+    this.client
+      .send(
+        MessagesTransport.initPayment, {
+          id: orderId,
+          amount: order.amount,
+          price: order.price,
+        })
+      .pipe(timeout(REQUEST_TIMEOUT))
+      .subscribe(this.updateOrderAfterProcessPayment);
+  }
+
+  async updateOrderAfterProcessPayment(paymentTxDetail: TransactionDetailDto): Promise<Order> {
+    const { orderId } = paymentTxDetail;
+    const order = await this.prisma.order.findUnique({
+      where: {
+        id: orderId,
+      }
+    });
+
+    if (!order || order.status !== OrderStatus.Created) {
+      throw new BadRequestException('Invalid order');
+    }
+
+    let isSuccess = false;
+    const data = {
+      txId: paymentTxDetail.txId,
+      status: <OrderStatus>OrderStatus.Canceled,
+    }
+
+    if (paymentTxDetail.status === TransactionStatus.CONFIRMED) {
+      data.status = <OrderStatus>OrderStatus.Confirmed;
+      isSuccess = true;
+    }
+
+    const updatedOrder = await this.prisma.order.update({
+      data,
+      where: {
+        id: orderId,
       }
     })
 
-    return newOrder;
+
+    this.eventEmitter.emit(isSuccess ? InternalEvents.ORDER_CONFIRMED : InternalEvents.ORDER_CANCELED, updatedOrder.id);
+    return updatedOrder;
   }
 }

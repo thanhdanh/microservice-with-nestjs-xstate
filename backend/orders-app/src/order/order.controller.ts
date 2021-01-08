@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Order, Prisma } from '@prisma/client';
 import { from, Observable } from 'rxjs';
 import { JwtAuthGuard } from 'src/auth/auth.guard';
 import { ICredential } from 'src/auth/constants';
+import { InternalEvents } from 'src/constants';
 import { Credential } from 'src/decorators/credential.decorator';
 import { OrderService } from './order.service';
 
@@ -35,5 +37,15 @@ export class OrderController {
   @Get(':id/cancel')
   async cancelOrder(@Param('id') id: number, @Credential() user: ICredential) {
     return this.orderService.cancelOrder(id, user);
+  }
+
+  @OnEvent(InternalEvents.ORDER_CREATED)
+  handleOrderCreated(orderId: number) {
+    return this.orderService.triggerNewPaymentProcess(orderId)
+  }
+
+  @OnEvent(InternalEvents.ORDER_CONFIRMED)
+  handleOrderConfirmed(orderId: number) {
+    return this.orderService.deliveryOrder(orderId)
   }
 }

@@ -13,6 +13,7 @@ services:
       - ./postgres:/var/lib/postgresql/data
   redis:
     image: 'redis'
+    container_name: 'redis'
     restart: always
     volumes:
       - ./redis:/data
@@ -34,5 +35,19 @@ services:
       - postgres
     links:
       - 'postgres'
+    command: 'npm run start:dev'
+  payments_app:
+    # build: ./backend/orders-app
+    image: "node:15"
+    restart: always
+    working_dir: /home/node/app
+    volumes:
+      - ./backend/payments-app:/home/node/app
+    environment: 
+      - NPM_CONFIG_LOGLEVEL=info
+    ports: 
+      - '3940:3000'
+    depends_on:
+      - redis
     command: 'npm run start:dev'
 
