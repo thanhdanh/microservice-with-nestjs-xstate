@@ -28,7 +28,7 @@ services:
     environment: 
       - NPM_CONFIG_LOGLEVEL=info
     ports: 
-      - '3001:3000'
+      - '3939:3000'
     depends_on:
       - redis
       - postgres

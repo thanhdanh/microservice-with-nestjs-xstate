@@ -26,7 +26,6 @@ model Order {
   status    OrderStatus @default(Created)
   amount    Int
   price     Float       @default(0)
-  txId      String
 
   user      User?    @relation(fields: [userId], references: [id])
   userId    Int?

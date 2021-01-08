@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException, NotImplementedException } from '@nestjs/common';
 import { PrismaService } from 'src/services/prisma.service';
-import { Order, Prisma } from '@prisma/client';
+import { Order, OrderStatus, Prisma } from '@prisma/client';
 import { ICredential } from 'src/auth/constants';
 
 @Injectable()
@@ -32,5 +32,63 @@ export class OrderService {
         userId: user.userId 
       }
     })
+  }
+
+  async findById(orderId: number, user: ICredential): Promise<Order>  {
+    const order = await this.prisma.order.findUnique({
+      where: {
+        id: orderId,
+      }
+    })
+
+    if (!order) throw new NotFoundException('Order not exist');
+    if (order.userId !== user.userId) throw new ForbiddenException();
+    return order;
+  }
+
+  async getStatusOfOrderById(orderId: number, user: ICredential) {
+    const order = await this.findById(orderId, user);
+    return order.status;
+  }
+
+  async cancelOrder(orderId: number, user: ICredential): Promise<Order>  {
+    const order = await this.findById(orderId, user);
+    if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Confirmed) {
+      throw new NotImplementedException('Not allow cancel with current status')
+    }
+
+    const newOrder = await this.prisma.order.update({
+      where: {
+        id: orderId
+      },
+      data: {
+        status: OrderStatus.Cancelled
+      }
+    })
+
+    return newOrder;
+  }
+
+  async deliveryOrder(orderId: number) {
+    const order = await this.prisma.order.findUnique({
+      where: {
+        id: orderId,
+      }
+    })
+
+    if (order.status !== OrderStatus.Confirmed) {
+      throw new NotImplementedException('Not allow deliver with current status') 
+    }
+
+    const newOrder = await this.prisma.order.update({
+      where: {
+        id: orderId
+      },
+      data: {
+        status: OrderStatus.Delivered
+      }
+    })
+
+    return newOrder;
   }
 }

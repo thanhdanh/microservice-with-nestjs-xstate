@@ -1,12 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { PrismaService } from 'src/services/prisma.service';
 
 @Injectable()
 export class UserService {
     constructor(
-        private jwtService: JwtService,
         private prisma: PrismaService
     ) { }
 
@@ -18,5 +16,9 @@ export class UserService {
                 name
             }
         });
+    }
+
+    async addNewUser(data: Prisma.UserCreateInput) {
+        return this.prisma.user.create({ data });
     }
 }
