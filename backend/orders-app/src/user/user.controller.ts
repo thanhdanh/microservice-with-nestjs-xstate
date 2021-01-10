@@ -1,14 +1,19 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Prisma, User } from '@prisma/client';
+import { from, Observable } from 'rxjs';
 import { UserService } from './user.service';
 
-@Controller('user')
+@Controller('users')
 export class UserController {
     constructor(private readonly userService: UserService) {}
 
     @Post()
     async create(@Body() payload: Prisma.UserCreateInput) {
-        const user = await this.userService.addNewUser(payload);
-        return user;
+        return await this.userService.addNewUser(payload);
+    }
+
+    @Get()
+    list(): Observable<User[]> {
+        return from(this.userService.getAllUsers());
     }
 }

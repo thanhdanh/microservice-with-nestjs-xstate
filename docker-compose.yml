@@ -1,8 +1,9 @@
 version: "3"
 services:
-  postgres:
-    image: postgres:13-alpine
+  db:
+    image: postgres:12
     restart: always
+    container_name: db
     environment:
       POSTGRES_USER: danhvt
       POSTGRES_PASSWORD: randompassword
@@ -10,7 +11,7 @@ services:
     ports: 
       - '15432:5432'
     volumes:
-      - ./postgres:/var/lib/postgresql/data
+      - ./db:/var/lib/postgresql/data
   redis:
     image: 'redis'
     container_name: 'redis'
@@ -23,6 +24,7 @@ services:
     # build: ./backend/orders-app
     image: "node:15"
     restart: always
+    container_name: orders_app
     working_dir: /home/node/app
     volumes:
       - ./backend/orders-app:/home/node/app
@@ -32,13 +34,14 @@ services:
       - '3939:3000'
     depends_on:
       - redis
-      - postgres
+      - db
     links:
-      - 'postgres'
+      - 'db'
     command: 'npm run start:dev'
   payments_app:
     # build: ./backend/orders-app
     image: "node:15"
+    container_name: payments_app
     restart: always
     working_dir: /home/node/app
     volumes:
@@ -50,4 +53,8 @@ services:
     depends_on:
       - redis
     command: 'npm run start:dev'
+
+volumes:
+  db:
+    name: db
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { PrismaService } from 'src/services/prisma.service';
 
@@ -19,6 +19,12 @@ export class UserService {
     }
 
     async addNewUser(data: Prisma.UserCreateInput) {
-        return this.prisma.user.create({ data });
+        return this.prisma.user.create({ data }).catch((ex) => {
+            return new BadRequestException(ex.message)
+        });
+    }
+
+    async getAllUsers() {
+        return this.prisma.user.findMany()
     }
 }
