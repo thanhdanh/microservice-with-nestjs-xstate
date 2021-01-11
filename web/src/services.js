@@ -1,4 +1,3 @@
-import { Subject } from "rxjs";
 
 const apiDomain = 'http://localhost:3939';
 
@@ -47,8 +46,4 @@ export async function getOrders(accessToken = '') {
         method: 'GET',
         headers,
     }).then(response => response.json())
-}
-
-export const globalSubject = {
-    authorized: new Subject()
 }

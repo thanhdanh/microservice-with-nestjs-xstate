@@ -1,16 +1,15 @@
 import { assign, Machine } from "xstate";
-import { getOrders } from "../services";
+import { getOrders, login } from "../services";
 
-const createUserMachine = () => Machine({
+const createUserMachine = ({ name }) => Machine({
     id: 'user',
-    initial: 'noauth',
+    initial: 'authenticating',
     context: {
-        name: null,
+        name,
         authorized: false,
         orders: [],
     },
     states: {
-        noauth: {},
         authenticating: {
             invoke: {
                 id: 'get_accesstoken',
@@ -61,15 +60,12 @@ const createUserMachine = () => Machine({
         }
     },
     on: {
-        SET_USERNAME: {
-            actions: assign({
-                name: (_, event) => event.value 
-            })
-        }
+        
     }
 }, {
     services: {
         getOrders: (context) => getOrders(context.accessToken),
+        login: (context) => login(context.name),
     }
 })
 

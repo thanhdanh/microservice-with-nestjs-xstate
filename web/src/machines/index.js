@@ -1,85 +1,85 @@
 import { assign, Machine, send, sendParent, spawn } from "xstate";
-import { fetchListUsers, addNewUser, globalSubject } from '../services';
-import { login } from "../services";
+import { fetchListUsers, addNewUser } from '../services';
 import createUserMachine from "./userMachine";
 
 export const rootMachine = Machine({
-  id: "root-machine",
+  id: "users",
   initial: "idle",
   context: {
     userName: null,
     users: [],
-    userSelected: spawn(createUserMachine()),
+    userSelected: undefined,
+    errorMessage: undefined,
+    successMessage: undefined
   },
   states: {
     idle: {
-      initial: "loading_users",
+      invoke: {
+        id: "fetch_users",
+        src: "getListUsers",
+        onDone: {
+          target: "loaded",
+          actions: assign({
+            users: (_, event) => event.data,
+            successMessage: 'Load users list successful'
+          })
+        },
+        onError: {
+          target: 'loading_fail',
+          actions: assign({
+            errorMessage: 'Load users list failed'
+          })
+        }
+      },
+    },
+    loaded: {
+      initial: 'idle',
       states: {
-        loading_users: {
-          invoke: {
-            id: "fetch_users",
-            src: "getListUsers",
-            onDone: {
-              target: "loaded_users",
-              actions: assign({
-                users: (_, event) => event.data
-              })
-            }
-          },
-        },
-        loaded_users: {
-          type: "final",
+        idle: {
           on: {
-            LOGIN: {
-              actions: sendParent('authenticating')
-            }
-          }
-        },
-        failure: {
-          on: {
-            RETRY: "loading_users"
-          }
-        },
-        addingUser: {
-          invoke: {
-            id: "add_user",
-            src: "addNewUser",
-            onDone: {
-              target: "loading_users",
-              actions: assign({
-                userName: null
-              })
+            SELECT_USER: {
+              actions: assign({ userSelected: (c, e) => spawn(createUserMachine({ name: e.value }))}),
+              target: '#users.selected'
             },
+            ADD_USER: '#users.add_new_user'
           }
         },
+        
       },
       on: {
-        ADD_USER: {
-          target: 'addingUser'
-        }
+        INPUT_USER_NAME: {
+          actions: assign({
+            userName: (_, event) => event.value
+          })
+        },
+      }
+    },
+    loading_fail: {
+      on: {
+        RETRY: "idle"
+      }
+    },
+    add_new_user: {
+      invoke: {
+        id: "add_user",
+        src: "addNewUser",
+        onDone: {
+          target: '#users.idle',
+          actions: [
+            assign({
+              userName: null,
+              successMessage: 'Add new user successful'
+            }),
+          ]
+        },
       }
     },
     selected: {}
   },
-  on: {
-    INPUT_USER_NAME: {
-      actions: assign({
-        userName: (_, event) => event.value
-      })
-    },
-    SELECT_USER: {
-      // actions: assign({
-      //   userSelected: (_, event) => createUserMachine({ name: event.value })
-      // }),
-      actions: assign((_, event) => send({ type: 'SET_USERNAME', event }, { to: 'user' })),
-      target: '.selected'
-    },
-  }
 }, {
   services: {
     getListUsers: () => fetchListUsers,
     addNewUser: (context) => addNewUser({ name: context.userName }),
-    login: (context) => login(context.userSelected.context.name),
   }
 })
 

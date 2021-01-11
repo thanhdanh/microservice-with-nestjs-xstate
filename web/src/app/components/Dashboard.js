@@ -3,20 +3,28 @@ import { Layout, Typography } from 'antd';
 import React, { useEffect } from 'react';
 import { interpret } from 'xstate';
 import { rootMachine } from '../../machines';
-import { from, Observable, Subject } from 'rxjs';
+import Notification from './Notify';
 
 import SelectUser from './SelectUser';
-import { globalSubject } from '../../services';
 const { Title } = Typography;
 const { Content } = Layout;
 
 const Dashboard = () => {
-  const [current] = useMachine(rootMachine);
-
-  globalSubject.authorized.subscribe({
-    next: (v) => console.log(`observerA: ${v}`)
-  })
+  const [state] = useMachine(rootMachine)
   
+  const service = interpret(rootMachine).onTransition(state => {
+    console.log(
+      'State -> ', state.value
+    )
+    console.log(state.context.userSelected);
+  });
+
+  useEffect(() => {
+    service.start()
+    return () =>
+    service.stop()
+  })
+
   return (
     <Layout className="layout">
       <Content style={{ padding: '70px 50px', textAlign: 'center' }}>
@@ -29,6 +37,7 @@ const Dashboard = () => {
         </Title>
         <SelectUser />
       </Content>
+      <Notification />
     </Layout>
   )
 }
