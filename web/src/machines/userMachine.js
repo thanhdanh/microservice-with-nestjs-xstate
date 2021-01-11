@@ -1,16 +1,31 @@
 import { assign, Machine } from "xstate";
 import { getOrders } from "../services";
 
-const createUserMachine = ({ name }) => Machine({
+const createUserMachine = () => Machine({
     id: 'user',
     initial: 'noauth',
     context: {
+        name: null,
+        authorized: false,
         orders: [],
-        name,
     },
     states: {
-        noauth: {
-           
+        noauth: {},
+        authenticating: {
+            invoke: {
+                id: 'get_accesstoken',
+                src: 'login',
+                onDone: {
+                    target: 'authenticated',
+                    actions: assign({
+                        accessToken: (_, event) => event.data.access_token,
+                        authorized: true,
+                    }),
+                },
+                onError: {
+                    target: 'authenticating'
+                }
+            }
         },
         authenticated: {
             initial: 'loading_orders',
@@ -43,6 +58,13 @@ const createUserMachine = ({ name }) => Machine({
                     }
                 }
             }
+        }
+    },
+    on: {
+        SET_USERNAME: {
+            actions: assign({
+                name: (_, event) => event.value 
+            })
         }
     }
 }, {

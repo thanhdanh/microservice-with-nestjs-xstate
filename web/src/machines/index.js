@@ -1,4 +1,4 @@
-import { assign, Machine, sendParent, spawn } from "xstate";
+import { assign, Machine, send, sendParent, spawn } from "xstate";
 import { fetchListUsers, addNewUser, globalSubject } from '../services';
 import { login } from "../services";
 import createUserMachine from "./userMachine";
@@ -9,7 +9,6 @@ export const rootMachine = Machine({
   context: {
     userName: null,
     users: [],
-    authorized: false,
     userSelected: spawn(createUserMachine()),
   },
   states: {
@@ -40,38 +39,27 @@ export const rootMachine = Machine({
           on: {
             RETRY: "loading_users"
           }
+        },
+        addingUser: {
+          invoke: {
+            id: "add_user",
+            src: "addNewUser",
+            onDone: {
+              target: "loading_users",
+              actions: assign({
+                userName: null
+              })
+            },
+          }
+        },
+      },
+      on: {
+        ADD_USER: {
+          target: 'addingUser'
         }
       }
     },
-    addingUser: {
-      invoke: {
-        id: "add_user",
-        src: "addNewUser",
-        onDone: {
-          target: "idle",
-          actions: assign({
-            userName: null
-          })
-        },
-      }
-    },
-    authenticating: {
-      invoke: {
-        id: 'get_accesstoken',
-        src: 'login',
-        onDone: {
-            // target: 'user.authenticated',
-            actions: [assign({
-                accessToken: (_, event) => event.data.access_token,
-                authorized: true,
-            }),
-          ],
-        },
-        onError: {
-          target: 'authenticating'
-        }
-      }
-    },
+    selected: {}
   },
   on: {
     INPUT_USER_NAME: {
@@ -79,14 +67,12 @@ export const rootMachine = Machine({
         userName: (_, event) => event.value
       })
     },
-    ADD_USER: {
-      target: 'addingUser',
-    },
     SELECT_USER: {
       // actions: assign({
       //   userSelected: (_, event) => createUserMachine({ name: event.value })
       // }),
-      target: 'user.authenticating'
+      actions: assign((_, event) => send({ type: 'SET_USERNAME', event }, { to: 'user' })),
+      target: '.selected'
     },
   }
 }, {
