@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { message } from 'antd';
-import { useMachine } from '@xstate/react';
-import { rootMachine } from '../../machines';
+import MachineContext from '../context';
+import { useService } from '@xstate/react';
 
 const Notification = () => {
-    const [current] = useMachine(rootMachine);
+    const service = useContext(MachineContext);
+    const [current] = useService(service);
+
     const { successMessage, errorMessage } = current.context;
 
     useEffect(() => {

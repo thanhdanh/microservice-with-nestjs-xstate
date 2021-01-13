@@ -1,10 +1,33 @@
-import React from 'react';
-import { List, Card, Row, Col, Statistic, Radio, Divider, Button } from 'antd';
+import React, { useContext, useState } from 'react';
+import { List, Card, Row, Col, Statistic, Radio, Divider, Button, Modal, Form } from 'antd';
 import BasicLayout from '../layouts/BasicLayout';
 import { PlusCircleOutlined } from '@ant-design/icons';
+import MachineContext from '../context';
+import { useService } from '@xstate/react';
+import { useHistory } from 'react-router-dom';
+import CreateOrderForm from './CreateOrderForm';
 
 
 const Orders = () => {
+  const service = useContext(MachineContext);
+  const [current] = useService(service);
+  const history = useHistory();
+  const [form] = Form.useForm();
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  const isAuthorized = !!current?.context?.authorized
+  if (!isAuthorized) {
+    setTimeout(() => {
+      history.push('/')
+    }, 200)
+  }
+
+  const onCreateOrder = (values) => {
+    console.log('Received values of form: ', values);
+    setShowCreateForm(false);
+  };
+
+
   return (
     <BasicLayout>
       {/* Statistic */}
@@ -32,12 +55,12 @@ const Orders = () => {
           </Col>
         </Row>
       </div>
-      
+
       <Divider />
 
       {/* Orders list filter */}
       <Card title="Orders list" extra={
-        <Button type="primary"><PlusCircleOutlined /> Add new order</Button>
+        <Button type="primary" onClick={() => setShowCreateForm(true)}><PlusCircleOutlined /> Add new order</Button>
       }>
         {/* Orders list */}
         <List
@@ -68,6 +91,26 @@ const Orders = () => {
           )}
         />
       </Card>
+      <Modal
+        title="Create a new order"
+        okText="Create"
+        cancelText="Cancel"
+        visible={showCreateForm}
+        onCancel={() => setShowCreateForm(false)}
+        onOk={() => {
+          form
+            .validateFields()
+            .then((values) => {
+              form.resetFields();
+              onCreateOrder(values);
+            })
+            .catch((info) => {
+              console.log('Validate Failed:', info);
+            });
+        }}
+      >
+        <CreateOrderForm form={form} />
+      </Modal>
     </BasicLayout>
   )
 }

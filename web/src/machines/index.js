@@ -1,5 +1,5 @@
-import { actions, assign, Machine, spawn } from "xstate";
-import { fetchListUsers, addNewUser } from '../services';
+import { assign, Machine } from "xstate";
+import { fetchListUsers, addNewUser, login, getOrders } from '../services';
 
 const newUserMachine = Machine({
   id: 'add_new_user',
@@ -10,17 +10,23 @@ const newUserMachine = Machine({
   states: {
     processing: {
       invoke: {
-        src: 'addNewUser'
-      }
+        src: 'addNewUser',
+        onDone: 'success',
+        onError: 'failed'
+      },
     },
     failed: {
       on: {
-        RETRY: "adding"
+        RETRY: "processing"
       }
     },
     success: {
       type: 'final'
     }
+  }
+}, {
+  services: {
+    addNewUser: (c) => addNewUser({ name: c.userName }),
   }
 })
 
@@ -29,15 +35,12 @@ export const appMachine = Machine({
   initial: "ready",
   context: {
     userNameInput: null,
-
     users: [],
     userSelected: null,
     authorized: false,
     accessToken: null,
-
     orders: [],
     orderSelected: null,
-    
     errorMessage: null,
     successMessage: null,
   },
@@ -58,7 +61,7 @@ export const appMachine = Machine({
         INPUT_USER_NAME: {
           actions: assign({
             userNameInput: (_, event) => event.value
-          })
+          }),
         },
         ADD_USER: {
           cond: 'notUsernameInputEmpty',
@@ -91,18 +94,17 @@ export const appMachine = Machine({
     },
     add_user: {
       invoke: {
+        id: 'add_new_user',
         src: newUserMachine,
         data: {
-          userName: (context, event) => context.userNameInput
+          userName: (context, _) => context.userNameInput
         },
         onDone: {
-          target: 'ready',
-          actions: [
-            assign({
-              userNameInput: null,
-              successMessage: 'Add new user successful'
-            }),
-          ]
+          target: 'fetching_users',
+          actions: assign({
+            userNameInput: null,
+            successMessage: 'Add new user successful'
+          })
         },
       }
     },
@@ -110,18 +112,16 @@ export const appMachine = Machine({
       invoke: {
         src: 'login',
         onDone: {
-          target: 'fetch_orders',
-          actions: [
-            assign({
-              authorized: true,
-              accessToken: (_, event) => event.data
-            }),
-          ]
+          target: 'fetching_orders',
+          actions: assign({
+            authorized: true,
+            accessToken: (_, event) => event.data?.access_token
+          }),
         },
         onError: 'ready'
       }
     },
-    fetch_orders: {
+    fetching_orders: {
       invoke: {
         src: 'fetchOrders',
         onDone: {
@@ -139,13 +139,12 @@ export const appMachine = Machine({
   },
 }, {
   guards: {
-    isAuthorized: (context) => context.authorized,
-    notUsernameInputEmpty: (context) => context.userNameInput && context.userNameInput !== '',
+    isAuthorized: (context) => !!context.authorized,
+    notUsernameInputEmpty: (context) => !!context.userNameInput,
   },
   services: {
     fetchListUsers: () => fetchListUsers,
-    addNewUser: (context) => addNewUser({ name: context.userName }),
-    login: (context) => login(context.name),
+    login: (context) => login(context.userSelected),
     fetchOrders: (context) => getOrders(context.accessToken),
   }
 })

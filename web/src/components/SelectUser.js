@@ -1,19 +1,22 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { Select, Input, Divider } from 'antd';
 import { useService } from "@xstate/react";
 
 import { PlusOutlined } from '@ant-design/icons';
-import { AppMachineProvider } from '../App';
+import MachineContext from '../context';
 
 const { Option } = Select;
 
 
-const SelectUser = () => {
-  const service = useContext(AppMachineProvider);
-  const [current] = useService(service);
-  
+export default function SelectUser() {
+  const service = useContext(MachineContext);
+  const [current, send] = useService(service);
   const { userSelected, users, userName } = current.context;
 
+  useEffect(() => {
+    send('FETCH_USERS')
+  }, [])
+  
   const addNewUser = () => {
     send({ type: "ADD_USER" });
   }
@@ -54,5 +57,3 @@ const SelectUser = () => {
       </Select>
   )
 }
-
-export default SelectUser;
