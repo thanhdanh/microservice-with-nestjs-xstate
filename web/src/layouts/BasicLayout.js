@@ -1,7 +1,6 @@
 import { Layout } from 'antd';
 import React from 'react';
-import Notification from '../components/Notify';
-import SelectUser from './../components/SelectUser';
+import SelectUser from '../components/SelectUser';
 
 const { Header, Content, Footer } = Layout;
 
@@ -16,7 +15,6 @@ const BasicLayout = ({ children }) => {
           {children}
         </div>
       </Content>
-      <Notification />
       <Footer style={{ textAlign: 'center' }}>Created by YOU</Footer>
     </Layout>
   )

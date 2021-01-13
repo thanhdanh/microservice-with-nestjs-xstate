@@ -1,85 +1,152 @@
-import { assign, Machine, send, sendParent, spawn } from "xstate";
+import { actions, assign, Machine, spawn } from "xstate";
 import { fetchListUsers, addNewUser } from '../services';
-import createUserMachine from "./userMachine";
 
-export const rootMachine = Machine({
-  id: "users",
-  initial: "idle",
+const newUserMachine = Machine({
+  id: 'add_new_user',
+  initial: 'processing',
   context: {
-    userName: null,
-    users: [],
-    userSelected: undefined,
-    errorMessage: undefined,
-    successMessage: undefined
+    userName: '',
   },
   states: {
-    idle: {
+    processing: {
       invoke: {
-        id: "fetch_users",
-        src: "getListUsers",
+        src: 'addNewUser'
+      }
+    },
+    failed: {
+      on: {
+        RETRY: "adding"
+      }
+    },
+    success: {
+      type: 'final'
+    }
+  }
+})
+
+export const appMachine = Machine({
+  id: "app",
+  initial: "ready",
+  context: {
+    userNameInput: null,
+
+    users: [],
+    userSelected: null,
+    authorized: false,
+    accessToken: null,
+
+    orders: [],
+    orderSelected: null,
+    
+    errorMessage: null,
+    successMessage: null,
+  },
+  states: {
+    ready: {
+      on: {
+        FETCH_USERS: 'fetching_users',
+        FETCH_ODERS: {
+          cond: 'isAuthorized',
+          target: 'fetching_orders',
+        },
+        SELECT_USER: {
+          actions: assign({
+            userSelected: (_, event) => event.value
+          }),
+          target: 'authorizing'
+        },
+        INPUT_USER_NAME: {
+          actions: assign({
+            userNameInput: (_, event) => event.value
+          })
+        },
+        ADD_USER: {
+          cond: 'notUsernameInputEmpty',
+          target: 'add_user'
+        },
+      }
+    },
+    fetching_users: {
+      invoke: {
+        src: "fetchListUsers",
         onDone: {
-          target: "loaded",
+          target: "ready",
           actions: assign({
             users: (_, event) => event.data,
             successMessage: 'Load users list successful'
           })
         },
         onError: {
-          target: 'loading_fail',
+          target: 'fetch_users_fail',
           actions: assign({
-            errorMessage: 'Load users list failed'
+            errorMessage: 'Load users failed'
           })
         }
       },
     },
-    loaded: {
-      initial: 'idle',
-      states: {
-        idle: {
-          on: {
-            SELECT_USER: {
-              actions: assign({ userSelected: (c, e) => spawn(createUserMachine({ name: e.value }))}),
-              target: '#users.selected'
-            },
-            ADD_USER: '#users.add_new_user'
-          }
-        },
-        
-      },
+    fetch_users_fail: {
       on: {
-        INPUT_USER_NAME: {
-          actions: assign({
-            userName: (_, event) => event.value
-          })
-        },
+        RETRY: "fetching_users"
       }
     },
-    loading_fail: {
-      on: {
-        RETRY: "idle"
-      }
-    },
-    add_new_user: {
+    add_user: {
       invoke: {
-        id: "add_user",
-        src: "addNewUser",
+        src: newUserMachine,
+        data: {
+          userName: (context, event) => context.userNameInput
+        },
         onDone: {
-          target: '#users.idle',
+          target: 'ready',
           actions: [
             assign({
-              userName: null,
+              userNameInput: null,
               successMessage: 'Add new user successful'
             }),
           ]
         },
       }
     },
-    selected: {}
+    authorizing: {
+      invoke: {
+        src: 'login',
+        onDone: {
+          target: 'fetch_orders',
+          actions: [
+            assign({
+              authorized: true,
+              accessToken: (_, event) => event.data
+            }),
+          ]
+        },
+        onError: 'ready'
+      }
+    },
+    fetch_orders: {
+      invoke: {
+        src: 'fetchOrders',
+        onDone: {
+          target: 'ready',
+          actions: [
+            assign({
+              orders: (_, event) => event.data,
+              successMessage: 'Load orders list successful'
+            }),
+          ]
+        },
+        onError: 'ready'
+      }
+    }
   },
 }, {
+  guards: {
+    isAuthorized: (context) => context.authorized,
+    notUsernameInputEmpty: (context) => context.userNameInput && context.userNameInput !== '',
+  },
   services: {
-    getListUsers: () => fetchListUsers,
+    fetchListUsers: () => fetchListUsers,
     addNewUser: (context) => addNewUser({ name: context.userName }),
+    login: (context) => login(context.name),
+    fetchOrders: (context) => getOrders(context.accessToken),
   }
 })
 

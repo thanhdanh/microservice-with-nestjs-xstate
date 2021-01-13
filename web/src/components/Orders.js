@@ -1,6 +1,6 @@
 import React from 'react';
 import { List, Card, Row, Col, Statistic, Radio, Divider, Button } from 'antd';
-import BasicLayout from '../layouts/basicLayout';
+import BasicLayout from '../layouts/BasicLayout';
 import { PlusCircleOutlined } from '@ant-design/icons';
 
 

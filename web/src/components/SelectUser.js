@@ -1,15 +1,17 @@
-import React from 'react';
-import { Select, Input, Divider, Spin } from 'antd';
-import { useMachine } from "@xstate/react";
+import React, { useContext } from 'react';
+import { Select, Input, Divider } from 'antd';
+import { useService } from "@xstate/react";
 
 import { PlusOutlined } from '@ant-design/icons';
-import { rootMachine } from '../../machines';
+import { AppMachineProvider } from '../App';
 
 const { Option } = Select;
 
 
 const SelectUser = () => {
-  const [current, send] = useMachine(rootMachine);
+  const service = useContext(AppMachineProvider);
+  const [current] = useService(service);
+  
   const { userSelected, users, userName } = current.context;
 
   const addNewUser = () => {
@@ -23,7 +25,6 @@ const SelectUser = () => {
   const handleUserNameChange = e => {
     send({ type: "INPUT_USER_NAME", value: e.target.value });
   };
-
 
   return (
       <Select

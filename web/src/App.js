@@ -3,21 +3,27 @@ import Notfound from './components/Notfound';
 import OrderDetail from './components/OrderDetail';
 import Orders from './components/Orders';
 import Dashboard from './components/Dashboard';
+import Notification from './components/Notify';
+
 import { BackTop } from 'antd';
 import "./../styles.css";
 
-function App() {
+import { appMachine } from './machines';
+
+export const AppMachineProvider = createContext();
+
+function App() {  
   return (
-    <div>
+    <AppMachineProvider value={appMachine}>
       <Switch>
         <Route exact path="/" component={Dashboard} />
         <Route exact path="/orders" component={Orders} />
-        <Route path="/orders/:id" component={OrderDetail} />
+        <Route exact path="/orders/:id" component={OrderDetail} />
         <Route component={Notfound} />
       </Switch>
       <BackTop />
-    </div>
-
+      <Notification />
+    </AppMachineProvider>
   );
 }
 

@@ -1,29 +1,15 @@
-import { useMachine } from '@xstate/react';
 import { Layout, Typography } from 'antd';
-import React, { useEffect } from 'react';
-import { interpret } from 'xstate';
-import { rootMachine } from '../../machines';
-import Notification from './Notify';
+import React, { useContext } from 'react';
+import { AppMachineProvider } from '../App';
 
 import SelectUser from './SelectUser';
 const { Title } = Typography;
 const { Content } = Layout;
 
 const Dashboard = () => {
-  const [state] = useMachine(rootMachine)
-  
-  const service = interpret(rootMachine).onTransition(state => {
-    console.log(
-      'State -> ', state.value
-    )
-    console.log(state.context.userSelected);
-  });
+  const service = useContext(AppMachineProvider);
+  const [current] = useService(service);
 
-  useEffect(() => {
-    service.start()
-    return () =>
-    service.stop()
-  })
 
   return (
     <Layout className="layout">
@@ -37,7 +23,6 @@ const Dashboard = () => {
         </Title>
         <SelectUser />
       </Content>
-      <Notification />
     </Layout>
   )
 }
