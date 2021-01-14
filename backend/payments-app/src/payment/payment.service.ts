@@ -39,7 +39,9 @@ export class PaymentService {
 
     validatePayment(): Promise<boolean> {
         return new Promise(resolve => setTimeout(() => {
-            resolve(Math.random() > 0.5);
+            const rand = Math.random();
+            this.logger.debug(' -> Rand: ' + rand)
+            resolve(rand > 0.4);
         }, 3000))
     }
 }

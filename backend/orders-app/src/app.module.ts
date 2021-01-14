@@ -9,9 +9,7 @@ import { UserModule } from './user/user.module';
     AuthModule,
     OrderModule,
     UserModule,
-    EventEmitterModule.forRoot({
-      global: true
-    }),
+    EventEmitterModule.forRoot(),
   ],
 })
 export class AppModule {}

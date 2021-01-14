@@ -5,9 +5,8 @@ import { ICredential } from 'src/auth/constants';
 import { Client, ClientProxy, Transport } from '@nestjs/microservices';
 import { DELIVERY_TIME, InternalEvents, MessagesTransport, REQUEST_TIMEOUT, TransactionStatus } from '../constants';
 import { timeout } from 'rxjs/operators';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { TransactionDetailDto } from './dto/tx-detail.dto';
-import { cursorTo } from 'readline';
 
 @Injectable()
 export class OrderService {
@@ -59,7 +58,7 @@ export class OrderService {
   async findById(orderId: number, user: ICredential): Promise<Order>  {
     const order = await this.prisma.order.findUnique({
       where: {
-        id: orderId,
+        id: +orderId,
       }
     })
 
@@ -81,7 +80,7 @@ export class OrderService {
 
     const newOrder = await this.prisma.order.update({
       where: {
-        id: orderId
+        id: +orderId
       },
       data: {
         status: OrderStatus.Canceled
@@ -105,7 +104,7 @@ export class OrderService {
     setTimeout(async () => {
       await this.prisma.order.update({
         where: {
-          id: orderId
+          id: +orderId
         },
         data: {
           status: OrderStatus.Delivered
@@ -117,7 +116,7 @@ export class OrderService {
   async triggerNewPaymentProcess(orderId: number) {
     const order = await this.prisma.order.findUnique({
       where: {
-        id: orderId,
+        id: +orderId,
       }
     });
 
@@ -133,11 +132,14 @@ export class OrderService {
           price: order.price,
         })
       .pipe(timeout(REQUEST_TIMEOUT))
-      .subscribe(this.updateOrderAfterProcessPayment);
+      .subscribe(this.updateOrderAfterProcessPayment.bind(this));
   }
 
   async updateOrderAfterProcessPayment(paymentTxDetail: TransactionDetailDto): Promise<Order> {
     const { orderId } = paymentTxDetail;
+    
+    this.logger.debug('Payment status ' + paymentTxDetail.status)
+
     const order = await this.prisma.order.findUnique({
       where: {
         id: orderId,
@@ -162,10 +164,11 @@ export class OrderService {
     const updatedOrder = await this.prisma.order.update({
       data,
       where: {
-        id: orderId,
+        id: +orderId,
       }
     })
 
+    this.logger.debug('After payment ' + updatedOrder.status)
 
     this.eventEmitter.emit(isSuccess ? InternalEvents.ORDER_CONFIRMED : InternalEvents.ORDER_CANCELED, updatedOrder.id);
     return updatedOrder;
@@ -191,5 +194,16 @@ export class OrderService {
     }) 
 
     return obj;
+  }
+
+  @OnEvent(InternalEvents.ORDER_CREATED)
+  handleOrderCreated(orderId: number) {
+    this.logger.log('Have new order ' + orderId)
+    return this.triggerNewPaymentProcess(orderId)
+  }
+
+  @OnEvent(InternalEvents.ORDER_CONFIRMED)
+  handleOrderConfirmed(orderId: number) {
+    return this.deliveryOrder(orderId)
   }
 }
