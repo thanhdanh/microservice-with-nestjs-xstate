@@ -47,3 +47,26 @@ export async function getOrders(accessToken = '') {
         headers,
     }).then(response => response.json())
 }
+
+export async function addNewOrder(accessToken = '', data = {}) {
+    const url = apiDomain + '/orders';
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept' : 'application/json',
+        'Authorization' : `Bearer ${accessToken}`
+    }
+    return postData(url, data, headers).then(response => response.json())
+}
+
+export async function getStatistic(accessToken = '') {
+    const url = apiDomain + '/orders/statistic';
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept' : 'application/json',
+        'Authorization' : `Bearer ${accessToken}`
+    }
+    return fetch(url, {
+        method: 'GET',
+        headers,
+    }).then(response => response.json())
+}

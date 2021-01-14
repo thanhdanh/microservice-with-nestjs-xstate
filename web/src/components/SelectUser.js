@@ -33,7 +33,7 @@ export default function SelectUser() {
       <Select
         style={{ width: 300 }}
         placeholder="Select user"
-        value={userSelected?.name}
+        value={userSelected}
         onChange={onSelectUser}
         dropdownRender={menu => (
           <div>

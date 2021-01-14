@@ -28,7 +28,9 @@ export default function CreateOrderForm({ form }) {
             >
                 <InputNumber 
                     min={0}
-                    step={1000} 
+                    step={1000}
+                    style={{ width: 150 }}
+                    defaultValue={1000}
                     formatter={value => `${value} USD`}
                     parser={value => value.replace(' USD', '')} 
                 />

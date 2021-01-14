@@ -7,6 +7,7 @@ import { DELIVERY_TIME, InternalEvents, MessagesTransport, REQUEST_TIMEOUT, Tran
 import { timeout } from 'rxjs/operators';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TransactionDetailDto } from './dto/tx-detail.dto';
+import { cursorTo } from 'readline';
 
 @Injectable()
 export class OrderService {
@@ -168,5 +169,27 @@ export class OrderService {
 
     this.eventEmitter.emit(isSuccess ? InternalEvents.ORDER_CONFIRMED : InternalEvents.ORDER_CANCELED, updatedOrder.id);
     return updatedOrder;
+  }
+
+  async getStatistic(user: ICredential) {
+    const statuses = Object.keys(OrderStatus);
+    const promises = statuses.map(status => this.prisma.order.count({
+      where: {
+        userId: user.userId,
+        status: OrderStatus[status],
+      }
+    }));
+
+    const result = await Promise.all(promises);
+    const total = result.reduce((prevValue, value) => value + prevValue, 0);
+    const obj = {
+      total,
+    }
+
+    result.forEach((value, index) => {
+      obj[statuses[index]] = value;
+    }) 
+
+    return obj;
   }
 }

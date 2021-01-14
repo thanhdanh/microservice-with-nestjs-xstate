@@ -8,7 +8,7 @@ const BasicLayout = ({ children }) => {
   return (
     <Layout className="layout">
       <Header className="header">
-        <SelectUser />
+        <span style={{ color: '#fff' }}>Select user:</span> <SelectUser />
       </Header>
       <Content className="site-layout" style={{ padding: '0 50px', marginTop: 64 }}>
         <div className="site-layout-background" style={{ padding: 24, minHeight: 380 }}>

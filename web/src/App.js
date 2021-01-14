@@ -15,7 +15,28 @@ import { interpret } from 'xstate';
 import { MachineContextProvider } from './context';
 
 export default function App() {
-  const service = interpret(appMachine)
+  const persistedOrderssMachine = appMachine.withConfig({
+    actions: {
+      persist: (ctx) => {
+        try {
+          localStorage.setItem("currentContext", JSON.stringify(ctx));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }).withContext({
+    ...(() => {
+      try {
+        return JSON.parse(localStorage.getItem("currentContext"));
+      } catch (e) {
+        console.error(e);
+        return null;
+      }
+    })()
+  })
+
+  const service = interpret(persistedOrderssMachine)
     .onTransition((state) => console.log(state.value))
     .start();
 

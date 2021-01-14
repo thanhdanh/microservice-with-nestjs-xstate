@@ -24,6 +24,11 @@ export class OrderController {
     return order;
   }
 
+  @Get('/statistic')
+  Statistic(@Credential() user: ICredential): Observable<any> {
+    return from(this.orderService.getStatistic(user));
+  }
+  
   @Get(':id')
   async details(@Param('id') id: number, @Credential() user: ICredential) {
     return this.orderService.findById(id, user);
