@@ -1,5 +1,42 @@
-import { assign, Machine } from "xstate";
+import { assign, Machine, send, spawn } from "xstate";
 import { fetchListUsers, addNewUser, login, getOrders, addNewOrder, getStatistic } from '../services';
+
+
+const usersMachine = Machine({
+  id: 'users',
+  initial: 'loading',
+  context: {
+    data: []
+  },
+  states: {
+    loading: {
+      invoke: {
+        src: 'fetchUsers',
+        onDone: {
+          data: (_, event) => event.data,
+          target: 'success'
+        },
+        onError: 'failed'
+      },
+    },
+    failed: {
+      on: {
+        RETRY: "loading"
+      }
+    },
+    success: {
+      type: 'final',
+      data: {
+        data: (context) => context.data
+      }
+    }
+  }
+}, {
+  services: {
+    fetchUsers: () => fetchListUsers,
+    fetchOrders: (context) => getOrders(context.accessToken),
+  }
+})
 
 const newUserMachine = Machine({
   id: 'add_new_user',
@@ -30,40 +67,149 @@ const newUserMachine = Machine({
   }
 })
 
+const createUserMachine = ({ name }) => Machine({
+  id: 'user',
+  initial: 'no_auth',
+  context: {
+    name,
+    authorized: false,
+    statistic: {},
+    orders: [],
+  },
+  states: {
+    no_auth: {
+      invoke: {
+        src: 'login',
+        onDone: {
+          target: 'authorized',
+          actions: [
+            assign({
+              authorized: true,
+              accessToken: (_, event) => event.data?.access_token
+            }),
+          ],
+        },
+        onError: [
+          {
+            cond: 'isNotFoundStatus',
+            target: '#app.idle',
+          }
+        ]
+      },
+    },
+    fetch_orders: {
+      invoke: {
+        src: 'fetchOrders',
+        onDone: {
+          actions: [
+            assign({
+              orders: (_, event) => event.data,
+              successMessage: 'Load orders list successful'
+            }),
+          ]
+        },
+        onError: [
+          {
+            cond: 'isUnauthorizedStatus',
+            target: 'no_auth',
+          },
+        ]
+      },
+    },
+    get_statistic: {
+      invoke: {
+        src: 'getStatistic',
+        onDone: {
+          actions: [
+            assign({
+              statistic: (_, event) => ({ ...event.data }),
+            }),
+          ]
+        },
+        onError: [
+          {
+            cond: 'isUnauthorizedStatus',
+            target: 'no_auth',
+          },
+        ]
+      },
+    },
+    add_order: {
+      on: {
+        CANCEL: "authorized"
+      },
+      invoke: {
+        src: 'addNewOrder',
+        onDone: 'ready',
+        onError: [
+          {
+            cond: 'isUnauthorizedStatus',
+            target: 'no_auth',
+          },
+          {
+            target: 'ready'
+          }
+        ]
+      }
+    },
+    authorized: {      
+    }
+  },
+  on: {
+    FETCH_ORDERS: {
+      cond: 'isAuthorized',
+      target: 'fetch_orders',
+    },
+    GET_STATISTIC: {
+      cond: 'isAuthorized',
+      target: 'get_statistic',
+    },
+    ADD_ORDER: {
+      cond: 'isAuthorized',
+      target: 'add_order'
+    },
+  }
+}, {
+  guards: {
+    isUnauthorizedStatus: (context, evt) => evt.status === 401,
+    isNotFoundStatus: (context, evt) => evt.status === 404,
+    isAuthorized: (context) => !!context.authorized,
+  },
+  services: {
+    login: (context) => login(context.name),
+  }
+})
+
 export const appMachine = Machine({
   id: "app",
-  initial: "ready",
+  initial: "idle",
   context: {
     userNameInput: null,
     users: [],
     userSelected: null,
-    authorized: false,
-    accessToken: null,
-    orders: [],
     errorMessage: null,
     successMessage: null,
-    statistic: {},
   },
   states: {
-    ready: {
+    idle: {
+      invoke: {
+        src: usersMachine,
+        onDone: {
+          actions: assign({
+            users: (_, event) => event.data.data,
+            successMessage: 'Load users list successful'
+          })
+        }
+      },
       on: {
-        FETCH_USERS: 'fetching_users',
-        FETCH_ORDERS: {
-          cond: 'isAuthorized',
-          target: 'fetching_orders',
-        },
-        FETCH_STATISTIC: {
-          cond: 'isAuthorized',
-          target: 'fetching_statistic',
-        },
         SELECT_USER: {
           actions: [
             assign({
-              userSelected: (_, event) => event.value
+              userSelected: (_, event) => spawn(createUserMachine(event.value))
             }),
             "persist"
           ],
-          target: 'authorizing'
+          target: 'selected'
         },
         INPUT_USER_NAME: {
           actions: assign({
@@ -74,44 +220,16 @@ export const appMachine = Machine({
           cond: 'notUsernameInputEmpty',
           target: 'add_user'
         },
-        ADD_ORDER: {
-          cond: 'isAuthorized',
-          target: 'add_order'
-        },
-      }
-    },
-    fetching_users: {
-      invoke: {
-        src: "fetchListUsers",
-        onDone: {
-          target: "ready",
-          actions: assign({
-            users: (_, event) => event.data,
-            successMessage: 'Load users list successful'
-          })
-        },
-        onError: {
-          target: 'fetch_users_fail',
-          actions: assign({
-            errorMessage: 'Load users failed'
-          })
-        }
-      },
-    },
-    fetch_users_fail: {
-      on: {
-        RETRY: "fetching_users"
       }
     },
     add_user: {
       invoke: {
-        id: 'add_new_user',
         src: newUserMachine,
         data: {
           userName: (context, _) => context.userNameInput
         },
         onDone: {
-          target: 'fetching_users',
+          target: 'idle',
           actions: assign({
             userNameInput: null,
             successMessage: 'Add new user successful'
@@ -119,74 +237,14 @@ export const appMachine = Machine({
         },
       }
     },
-    authorizing: {
-      invoke: {
-        src: 'login',
-        onDone: {
-          target: 'fetching_orders',
-          actions: [assign({
-            authorized: true,
-            accessToken: (_, event) => event.data?.access_token
-          }),
-            "persist"
-          ],
-        },
-        onError: 'ready'
-      }
-    },
-    fetching_orders: {
-      invoke: {
-        src: 'fetchOrders',
-        onDone: {
-          target: 'ready',
-          actions: [
-            assign({
-              orders: (_, event) => event.data,
-              successMessage: 'Load orders list successful'
-            }),
-            "persist"
-          ]
-        },
-        onError: 'ready'
-      }
-    },
-    fetching_statistic: {
-      invoke: {
-        src: 'getStatistic',
-        onDone: {
-          target: 'ready',
-          actions: [
-            assign({
-              statistic: (_, event) => ({ ...event.data }),
-            }),
-            "persist"
-          ]
-        },
-        onError: 'ready'
-      }
-    },
-    add_order: {
-      on: {
-        CANCEL: "ready"
-      },
-      invoke: {
-        src: 'addNewOrder',
-        onDone: 'fetching_orders',
-        onError: 'ready'
-      }
-    }
+    selected: {},
   },
 }, {
   guards: {
-    isAuthorized: (context) => !!context.authorized,
     notUsernameInputEmpty: (context) => !!context.userNameInput,
-
     isDuplicateData: (context, evt) => evt.data.code === 1,
   },
   services: {
-    fetchListUsers: () => fetchListUsers,
-    login: (context) => login(context.userSelected),
-    fetchOrders: (context) => getOrders(context.accessToken),
     addNewOrder: (context, event) => addNewOrder(context.accessToken, event.data),
     getStatistic: (context, event) => getStatistic(context.accessToken),
   },
