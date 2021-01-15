@@ -1,6 +1,7 @@
-import { assign, Machine, send, spawn } from "xstate";
+import { Machine, send, spawn } from "xstate";
 import { fetchListUsers, addNewUser, login, getOrders, addNewOrder, getStatistic } from '../services';
-
+import { assign } from '@xstate/immer';
+import { respond, sendParent } from "xstate/lib/actions";
 
 const usersMachine = Machine({
   id: 'users',
@@ -13,7 +14,9 @@ const usersMachine = Machine({
       invoke: {
         src: 'fetchUsers',
         onDone: {
-          data: (_, event) => event.data,
+          actions: assign((ctx, event) => {
+            ctx.data = event.data
+          }),
           target: 'success'
         },
         onError: 'failed'
@@ -34,7 +37,6 @@ const usersMachine = Machine({
 }, {
   services: {
     fetchUsers: () => fetchListUsers,
-    fetchOrders: (context) => getOrders(context.accessToken),
   }
 })
 
@@ -67,9 +69,9 @@ const newUserMachine = Machine({
   }
 })
 
-const createUserMachine = ({ name }) => Machine({
+const createUserMachine = (name) => Machine({
   id: 'user',
-  initial: 'no_auth',
+  initial: 'authorizing',
   context: {
     name,
     authorized: false,
@@ -77,24 +79,21 @@ const createUserMachine = ({ name }) => Machine({
     orders: [],
   },
   states: {
-    no_auth: {
+    authorizing: {
       invoke: {
+        id: 'login',
         src: 'login',
         onDone: {
-          target: 'authorized',
+          target: 'fetch_orders',
           actions: [
-            assign({
-              authorized: true,
-              accessToken: (_, event) => event.data?.access_token
+            assign((ctx, event) => {
+              ctx.authorized = true;
+              ctx.accessToken = event.data?.access_token
             }),
+            sendParent('AUTHORIZED')
           ],
         },
-        onError: [
-          {
-            cond: 'isNotFoundStatus',
-            target: '#app.idle',
-          }
-        ]
+        onError: 'exit',
       },
     },
     fetch_orders: {
@@ -102,16 +101,17 @@ const createUserMachine = ({ name }) => Machine({
         src: 'fetchOrders',
         onDone: {
           actions: [
-            assign({
-              orders: (_, event) => event.data,
-              successMessage: 'Load orders list successful'
+            assign((ctx, event) => {
+              ctx.orders = event.data;
+              ctx.successMessage = 'Load orders list successful'
             }),
-          ]
+          ],
+          target: 'get_statistic'
         },
         onError: [
           {
             cond: 'isUnauthorizedStatus',
-            target: 'no_auth',
+            target: 'authorizing',
           },
         ]
       },
@@ -121,16 +121,20 @@ const createUserMachine = ({ name }) => Machine({
         src: 'getStatistic',
         onDone: {
           actions: [
-            assign({
-              statistic: (_, event) => ({ ...event.data }),
+            assign((ctx, event) => {
+              ctx.statistic = event.data;
             }),
-          ]
+          ],
+          target: 'authorized'
         },
         onError: [
           {
             cond: 'isUnauthorizedStatus',
-            target: 'no_auth',
+            target: 'authorizing',
           },
+          {
+            target: 'authorized'
+          }
         ]
       },
     },
@@ -140,19 +144,24 @@ const createUserMachine = ({ name }) => Machine({
       },
       invoke: {
         src: 'addNewOrder',
-        onDone: 'ready',
+        onDone: {
+          target: 'fetch_orders'
+        },
         onError: [
           {
             cond: 'isUnauthorizedStatus',
-            target: 'no_auth',
+            target: 'authorizing',
           },
           {
-            target: 'ready'
+            target: 'authorized'
           }
         ]
       }
     },
     authorized: {      
+    },
+    exit: {
+      type: 'final'
     }
   },
   on: {
@@ -168,6 +177,10 @@ const createUserMachine = ({ name }) => Machine({
       cond: 'isAuthorized',
       target: 'add_order'
     },
+    AUTHORIZE: {
+      target: 'authorizing',
+      actions: assign((ctx, event) => { ctx.name = event.name })
+    }
   }
 }, {
   guards: {
@@ -177,6 +190,8 @@ const createUserMachine = ({ name }) => Machine({
   },
   services: {
     login: (context) => login(context.name),
+    getStatistic: (context, event) => getStatistic(context.accessToken),
+    fetchOrders: (context) => getOrders(context.accessToken),
   }
 })
 
@@ -187,6 +202,7 @@ export const appMachine = Machine({
     userNameInput: null,
     users: [],
     userSelected: null,
+    userSelectedName: null,
     errorMessage: null,
     successMessage: null,
   },
@@ -195,25 +211,26 @@ export const appMachine = Machine({
       invoke: {
         src: usersMachine,
         onDone: {
-          actions: assign({
-            users: (_, event) => event.data.data,
-            successMessage: 'Load users list successful'
+          actions: assign((ctx, event) => {
+            ctx.users = event.data.data;
+            ctx.successMessage = 'Load users list successful';
           })
         }
       },
       on: {
         SELECT_USER: {
-          actions: [
-            assign({
-              userSelected: (_, event) => spawn(createUserMachine(event.value))
-            }),
-            "persist"
-          ],
-          target: 'selected'
+          // actions: assign((ctx, event) => {
+          //   ctx.userSelected = event.value;
+          // }),
+          target: 'selected',
+          actions: assign((ctx, event) => {
+            ctx.userSelectedName = event.value;
+            ctx.userSelected = spawn(createUserMachine(event.value))
+          })
         },
         INPUT_USER_NAME: {
-          actions: assign({
-            userNameInput: (_, event) => event.value
+          actions: assign((ctx, event) => {
+            ctx.userNameInput = event.value;
           }),
         },
         ADD_USER: {
@@ -237,16 +254,31 @@ export const appMachine = Machine({
         },
       }
     },
-    selected: {},
+    selected: {
+      on: {
+        AUTHORIZED: 'authorized'
+      }
+      // invoke: {
+      //   id: 'user',
+      //   src: userMachine,
+      //   data: {
+      //     name: (ctx) => ctx.userSelected
+      //   },
+      //   onDone: {
+      //     actions: assign((ctx) => { ctx.userSelected = null }),
+      //     target: 'idle'
+      //   }
+      // },
+    },
+    authorized: {}
   },
 }, {
   guards: {
     notUsernameInputEmpty: (context) => !!context.userNameInput,
-    isDuplicateData: (context, evt) => evt.data.code === 1,
+    // isDuplicateData: (context, evt) => evt.data.code === 1,
   },
   services: {
     addNewOrder: (context, event) => addNewOrder(context.accessToken, event.data),
-    getStatistic: (context, event) => getStatistic(context.accessToken),
   },
 })
 

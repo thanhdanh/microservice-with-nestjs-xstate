@@ -3,9 +3,10 @@ import { List, Card, Row, Col, Statistic, Radio, Divider, Button, Modal, Form, T
 import BasicLayout from '../layouts/BasicLayout';
 import { FileDoneOutlined, FileExcelOutlined, FileSyncOutlined, PlusCircleOutlined, ScheduleOutlined, ShoppingOutlined } from '@ant-design/icons';
 import MachineContext from '../context';
-import { useService } from '@xstate/react';
+import { useMachine, useService } from '@xstate/react';
 import { useHistory } from 'react-router-dom';
 import CreateOrderForm from './CreateOrderForm';
+import { interpret } from 'xstate';
 
 const { Meta } = Card;
 
@@ -54,25 +55,25 @@ function getColorByStatus(status = OrderStatus.CREATED) {
 const Orders = () => {
   const service = useContext(MachineContext);
   const [current, send] = useService(service);
+
   const history = useHistory();
   const [form] = Form.useForm();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [filter, setFilter] = useState('all');
   
-  const { authorized, orders = [], statistic = {} } = current.context;
+  const { orders = [], statistic = {} } = current.context;
 
-  if (!authorized) {
+  const { userSelected: userMachine } = current.children;
+  const isAuthorized = current.matches('authorized');    
+
+  if (!isAuthorized) {
     setTimeout(() => {
       history.push('/')
     }, 200)
   }
 
-  useEffect(() => {
-    send('FETCH_STATISTIC')
-  }, [])
-
   const onCreateOrder = (values) => {
-    send({ type: 'ADD_ORDER', data: values })
+    send('ADD_ORDER', { to: '#user', data: values })
     setShowCreateForm(false);
   };
 

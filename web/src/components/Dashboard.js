@@ -11,10 +11,9 @@ const { Content } = Layout;
 const Dashboard = () => {
   const service = useContext(MachineContext);
   const [current] = useService(service);
-  
   const history = useHistory()
+  const isAuthorized = current.matches('authorized');    
 
-  const isAuthorized = !!current?.context?.authorized
   if (isAuthorized) {
     setTimeout(() => {
       history.push('/orders')

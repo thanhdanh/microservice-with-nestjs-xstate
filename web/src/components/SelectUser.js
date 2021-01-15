@@ -11,11 +11,7 @@ const { Option } = Select;
 export default function SelectUser() {
   const service = useContext(MachineContext);
   const [current, send] = useService(service);
-  const { userSelected, users, userName } = current.context;
-
-  useEffect(() => {
-    send('FETCH_USERS')
-  }, [])
+  const { users, userSelectedName } = current.context;
   
   const addNewUser = () => {
     send({ type: "ADD_USER" });
@@ -33,14 +29,14 @@ export default function SelectUser() {
       <Select
         style={{ width: 300 }}
         placeholder="Select user"
-        value={userSelected}
+        value={userSelectedName}
         onChange={onSelectUser}
         dropdownRender={menu => (
           <div>
             {menu}
             <Divider style={{ margin: '4px 0' }} />
             <div style={{ display: 'flex', flexWrap: 'nowrap', padding: 8 }}>
-              <Input style={{ flex: 'auto' }} value={userName} placeholder="ex: Vo Thanh Danh ..." onChange={handleUserNameChange} />
+              <Input style={{ flex: 'auto' }} value={userSelectedName} placeholder="ex: Vo Thanh Danh ..." onChange={handleUserNameChange} />
               <a
                 style={{ flex: 'none', padding: '8px', display: 'block', cursor: 'pointer' }}
                 onClick={addNewUser}
