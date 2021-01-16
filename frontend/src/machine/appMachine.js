@@ -1,6 +1,6 @@
 import { Machine, sendUpdate, actions, spawn } from "xstate";
 import { assign } from "@xstate/immer";
-import { addNewOrder, fetchListUsers, getOrders, getStatistic, login, cancelOrder } from "../shared/services";
+import { addNewOrder, fetchListUsers, getOrders, getStatistic, login, cancelOrder, addNewUser } from "../shared/services";
 
 const createUserMachine = ({ name }) => Machine(
   {
@@ -159,6 +159,13 @@ export const appMachine = Machine(
         
       },
       selected: {},
+      adding: {
+        invoke: {
+          id: 'add_new_user',
+          src: (ctx, event) => addNewUser({ name: event.value }),
+          onDone: 'ready'
+        }
+      },
     },
     on: {
       SELECT_USER: {
@@ -169,7 +176,8 @@ export const appMachine = Machine(
             ctx.userChosen = spawn(createUserMachine({ name: event.value }), { autoForward: true });
           })
         ]
-      }
+      },
+      ADD_USER: 'adding'
     }
   },
   {

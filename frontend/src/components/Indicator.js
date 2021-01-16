@@ -6,7 +6,7 @@ import UserMachineContext from '../shared/context';
 
 export default function Indicator() {
   const service = useContext(UserMachineContext);
-  const [current, send] = useService(service);
+  const [current] = useService(service);
   const { statistic = {} } = current.context;
   const { total = 0, Confirmed = 0, Canceled = 0, Delivered = 0 } = statistic;
 

@@ -1,4 +1,4 @@
-version: "3"
+version: '3.7'
 services:
   db:
     image: postgres:12
@@ -20,12 +20,20 @@ services:
       - ./redis:/data
     ports: 
       - '16379:6379'
+  web:
+    build: ./frontend
+    container_name: orders_web
+    volumes:
+      - './frontend:/app'
+      - '/app/node_modules'
+    ports:
+      - '3938:80'
   orders_app:
-    # build: ./backend/orders-app
-    image: "node:15"
+    build: ./backend/orders-app
+    # image: "node:15"
     restart: always
     container_name: orders_app
-    working_dir: /home/node/app
+    # working_dir: /home/node/app
     volumes:
       - ./backend/orders-app:/home/node/app
     environment: 
@@ -36,14 +44,14 @@ services:
       - redis
       - db
     links:
-      - 'db'
-    command: 'npm run start:dev'
+      - db
+    # command: 'npm run start:dev'
   payments_app:
-    # build: ./backend/orders-app
-    image: "node:15"
+    build: ./backend/payments-app
+    # image: "node:15"
     container_name: payments_app
     restart: always
-    working_dir: /home/node/app
+    # working_dir: /home/node/app
     volumes:
       - ./backend/payments-app:/home/node/app
     environment: 
@@ -52,7 +60,7 @@ services:
       - '3940:3000'
     depends_on:
       - redis
-    command: 'npm run start:dev'
+    # command: 'npm run start:dev'
 
 # volumes:
 #   db:

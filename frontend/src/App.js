@@ -8,6 +8,9 @@ import { UserMachineContextProvider } from './shared/context';
 import OrdersPage from './components/Orders';
 import { socket, SocketContext } from './shared/socketContext';
 
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 export default function App() {
   const [current, send, service] = useMachine(appMachine, { devTools: true });
   useEffect(() => {
@@ -27,6 +30,10 @@ export default function App() {
     send('SELECT_USER', { value })
   }
 
+  const handleAddUser = (value) => {
+    send('ADD_USER', { value })
+  }
+
   return (
     <UserMachineContextProvider value={userChosen}>
       <SocketContext.Provider value={socket}>
@@ -34,9 +41,10 @@ export default function App() {
           <Container style={{ maxWidth: 900 }}>
             <main>
               <h1>Orders Management App</h1>
-              <UserSelection users={listUsers} onSelect={onSelectUser} />
+              <UserSelection users={listUsers} onSelect={onSelectUser} onCreateUser={handleAddUser} />
               <div>{userChosen && <OrdersPage />}</div>
             </main>
+            <ToastContainer />
           </Container>
         </div>
       </SocketContext.Provider>

@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 
 const apiDomain = process.env.REACT_APP_API_HOST;
 
@@ -27,7 +28,11 @@ export async function fetchListUsers() {
 
 export async function addNewUser(data) {
     const url = apiDomain + '/users';
-    return postData(url, data).then(response => response.json())
+    return postData(url, data).then(response => response.json()).then((newUser) => {
+        toast(`User ${newUser.name} is created successful`, { type: 'success' }) 
+    }).catch(() => {
+        toast(`Created user failed`, { type: 'error' }) 
+    })
 }
 
 export async function login(name ='') {

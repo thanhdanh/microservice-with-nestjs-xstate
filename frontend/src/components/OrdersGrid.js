@@ -1,6 +1,7 @@
 import { useService } from '@xstate/react';
 import React, { useContext, useEffect, useState } from 'react';
 import { Button, ButtonGroup, ButtonToolbar, Card, CardDeck, Col, Row } from 'react-bootstrap';
+import { toast } from 'react-toastify';
 import UserMachineContext from '../shared/context';
 import { OrderStatus } from '../shared/helpers';
 import { SocketContext, MessageSocket } from '../shared/socketContext';
@@ -44,17 +45,26 @@ export default function OrdersList() {
 
   useEffect(() => {
     socket.on(MessageSocket.NEW_ORDER, (data) => {
-      console.log(data)
-    }); 
+      console.log(data);
+      toast('Order created successful', { type: 'success' })
+    });
+    
     socket.on(MessageSocket.ORDER_CHANGED_STATUS, (data) => {
-      console.log(data)
+      send('FETCH_ORDERS');
+      if (data.status === OrderStatus.CANCELED) {
+        toast(`Order #${data.id} is canceled`, { type: 'error' })
+      } else if (data.status === OrderStatus.CONFIRMED) {
+        toast(`Order #${data.id} is confirmed`, { type: 'warning' })
+      } else if (data.status === OrderStatus.DELIVERED) {
+        toast(`Order #${data.id} is delivered`, { type: 'success' })
+      }
     }); 
   }, [socket])
 
   return (
     <CardDeck style={{ marginTop: 20 }}>
       <Card>
-        <Card.Header>
+        <Card.Header>d
           <OrderCreateForm onSubmit={handleSubmit} />
         </Card.Header>
         <Card.Body>
