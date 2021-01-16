@@ -1,17 +1,20 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, NotImplementedException } from '@nestjs/common';
+import { ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, NotImplementedException } from '@nestjs/common';
 import { PrismaService } from 'src/services/prisma.service';
 import { Order, OrderStatus, Prisma } from '@prisma/client';
 import { ICredential } from 'src/auth/constants';
 import { Client, ClientProxy, Transport } from '@nestjs/microservices';
 import { DELIVERY_TIME, InternalEvents, MessagesTransport, REQUEST_TIMEOUT, TransactionStatus } from '../constants';
-import { timeout } from 'rxjs/operators';
+import { filter, takeUntil, timeout } from 'rxjs/operators';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { TransactionDetailDto } from './dto/tx-detail.dto';
+import { Subject, timer } from "rxjs";
+import { OrderGateway } from './order.gateway';
 
 @Injectable()
 export class OrderService {
   private readonly logger = new Logger('OrderService');
-  
+  private readonly cancelOrder$ = new Subject();
+
   @Client({
     transport: Transport.REDIS,
     options: { url: process.env.REDIS_URL }
@@ -20,7 +23,8 @@ export class OrderService {
 
   constructor(
     private prisma: PrismaService,
-    private eventEmitter: EventEmitter2
+    private eventEmitter: EventEmitter2,
+    private readonly webSocket: OrderGateway
   ) {}
   
   /**
@@ -40,7 +44,7 @@ export class OrderService {
     });
 
     this.eventEmitter.emit(InternalEvents.ORDER_CREATED, newOrder.id);
-
+    this.webSocket.newOrderAdded(newOrder);
     return newOrder;
   }
 
@@ -87,6 +91,10 @@ export class OrderService {
       }
     })
 
+    this.cancelOrder$.next(+orderId)
+    this.logger.debug('Canceled order ' + orderId);
+    this.webSocket.orderStatusUpdated(newOrder);
+
     return newOrder;
   }
 
@@ -102,7 +110,7 @@ export class OrderService {
     }
 
     setTimeout(async () => {
-      await this.prisma.order.update({
+      const newOrder = await this.prisma.order.update({
         where: {
           id: +orderId
         },
@@ -110,6 +118,7 @@ export class OrderService {
           status: OrderStatus.Delivered
         }
       })
+      this.webSocket.orderStatusUpdated(newOrder);
     }, DELIVERY_TIME)
   }
 
@@ -121,7 +130,10 @@ export class OrderService {
     });
 
     if (!order || order.status !== OrderStatus.Created) {
-      throw new BadRequestException('Invalid order');
+      throw new HttpException({
+        status: HttpStatus.BAD_REQUEST,
+        error: 'Invalid order',
+      }, HttpStatus.BAD_REQUEST);
     }
 
     this.client
@@ -147,7 +159,10 @@ export class OrderService {
     });
 
     if (!order || order.status !== OrderStatus.Created) {
-      throw new BadRequestException('Invalid order');
+      throw new HttpException({
+        status: HttpStatus.BAD_REQUEST,
+        error: 'Invalid order',
+      }, HttpStatus.BAD_REQUEST);
     }
 
     let isSuccess = false;
@@ -168,9 +183,10 @@ export class OrderService {
       }
     })
 
-    this.logger.debug('After payment ' + updatedOrder.status)
-
+    this.logger.debug('After payment ' + updatedOrder.status);
     this.eventEmitter.emit(isSuccess ? InternalEvents.ORDER_CONFIRMED : InternalEvents.ORDER_CANCELED, updatedOrder.id);
+    this.webSocket.orderStatusUpdated(updatedOrder);
+
     return updatedOrder;
   }
 
@@ -199,7 +215,9 @@ export class OrderService {
   @OnEvent(InternalEvents.ORDER_CREATED)
   handleOrderCreated(orderId: number) {
     this.logger.log('Have new order ' + orderId)
-    return this.triggerNewPaymentProcess(orderId)
+    return timer(10000).pipe(
+      takeUntil(this.cancelOrder$.pipe(filter(val => val === +orderId))),
+    ).subscribe(() => this.triggerNewPaymentProcess(orderId));
   }
 
   @OnEvent(InternalEvents.ORDER_CONFIRMED)

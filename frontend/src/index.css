@@ -1,0 +1,42 @@
+body, html {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Open Sans', sans-serif;
+}
+
+.App {
+  font-family: sans-serif;
+  text-align: center;
+}
+
+main {
+  padding: 2rem;
+  overflow: hidden;
+}
+
+main h1 {
+  font-size: 2rem;
+  margin-top: 2rem;
+}
+
+.indicator-box {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #ededed;
+  box-shadow: 0 1rem 1rem rgba(0, 0, 0, 0.2);
+  transition: opacity .3s;
+}
+
+.grid-col {
+  width: 100%;
+  padding: 10px;
+}
+
+.grid-col h2 {
+  font-weight: bold;
+}
