@@ -15,3 +15,12 @@ This project consists of the following parts:
 + API gateway.
 + Order Service
 + Payment Service
+
+## Running the app
+Install Docker if you do not have it. Run docker package using docker-compose command
+
+1. Run all services
+```
+docker-compose up -d --build 
+```
+2. Access to the orders website at URL: http://localhost:3938
