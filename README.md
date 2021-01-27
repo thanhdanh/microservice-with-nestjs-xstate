@@ -1,4 +1,4 @@
-# setel
+# Sample practice about Microservice with NestJS  
 
 Project is Order Management, it is using NestJS and applying Microservice. This repository is also include a SPA, written by ReactJS.
 
